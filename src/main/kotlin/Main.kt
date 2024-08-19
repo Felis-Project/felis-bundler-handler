@@ -125,7 +125,7 @@ class ServerJar(private val versionId: String, private val path: Path, json: Jso
     }
 }
 
-fun downloadServerJar(path: Path): List<Path> {
+fun downloadClasspath(path: Path): List<Path> {
     val json = Json {
         ignoreUnknownKeys = true
     }
@@ -148,20 +148,17 @@ fun downloadServerJar(path: Path): List<Path> {
 }
 
 fun main() {
-    val cp = downloadServerJar(Paths.get("."))
+    val cp = downloadClasspath(Paths.get("."))
 
     val cl = URLClassLoader(cp.map { it.toUri().toURL() }.toTypedArray(), ClassLoader.getSystemClassLoader())
     val mainclass = Class.forName("felis.MainKt", true, cl)
     val mainMethod = MethodHandles.publicLookup()
         .findStatic(mainclass, "main", MethodType.fromMethodDescriptorString("([Ljava/lang/String;)V", cl))
-    System.setProperty("felis.remap", "true")
+    System.setProperty("felis.minecraft.remap", "true")
     System.setProperty("felis.launcher", "felis.launcher.MinecraftLauncher")
     System.setProperty("felis.side", "SERVER")
     System.setProperty("felis.mods", "felis-mods")
     System.setProperty("java.class.path", cp.joinToString(File.pathSeparator) { it.pathString })
-    val t = Thread {
-        mainMethod.invokeExact(arrayOf<String>())
-    }
-    t.contextClassLoader = cl
-    t.start()
+    Thread.currentThread().contextClassLoader = cl
+    mainMethod.invokeExact(arrayOf<String>())
 }

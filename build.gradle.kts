@@ -3,7 +3,7 @@ plugins {
     kotlin("plugin.serialization") version "2.0.0"
 }
 
-group = "io.github.joemama.fbh"
+group = "felis.bundler.handler"
 version = "1.0-SNAPSHOT"
 
 repositories {

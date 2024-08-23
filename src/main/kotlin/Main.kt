@@ -57,10 +57,11 @@ data class Library(val name: String, val url: String) {
     fun download(librariesPath: Path, client: HttpClient): CompletableFuture<Path> {
         val dst = librariesPath / this.groupId.replace(".", "/") / this.library / this.version / this.fileName
         return if (dst.exists()) CompletableFuture.completedFuture(dst) else {
+            println("Downloading ${this.name} to $dst")
             dst.createParentDirectories()
             client.sendAsync(
                 HttpRequest.newBuilder().GET().uri(this.toUri()).build(),
-                BodyHandlers.ofFile(dst, StandardOpenOption.WRITE, StandardOpenOption.CREATE)
+                BodyHandlers.ofFile(dst)
             ).thenApply { it.body() }
         }
     }
@@ -77,6 +78,7 @@ class ServerJar(private val versionId: String, private val path: Path, json: Jso
     init {
         if (!this.path.exists()) {
             //downlaod the manifest
+            println("Downloading version_manifest_v2.json")
             val versionManifest = client.send(
                 HttpRequest.newBuilder().GET()
                     .uri(URI.create("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")).build(),
@@ -85,6 +87,7 @@ class ServerJar(private val versionId: String, private val path: Path, json: Jso
             // find the target version
             val version = versionManifest.versions.find { it.id == this.versionId }
                 ?: throw IllegalArgumentException("Unknown version ${this.versionId}")
+            println("Gathering resources for version $version")
             // extra version info
             val versionJson =
                 client.send(HttpRequest.newBuilder(URI.create(version.url)).GET().build(), BodyHandlers.ofString())
@@ -94,11 +97,13 @@ class ServerJar(private val versionId: String, private val path: Path, json: Jso
             val bundlerUrl = serverMeta.getValue("url").jsonPrimitive.content
             val sha1 = serverMeta.getValue("sha1").jsonPrimitive.content
 
+            println("Downloading bundler.jar")
             // download the bundler
             val serverJar = client.send(
                 HttpRequest.newBuilder(URI.create(bundlerUrl)).GET().build(),
                 BodyHandlers.ofFile(this.path)
             ).body()
+            println("Verifying bundler jar signature")
             // verify the bundler
             val digest = MessageDigest.getInstance("SHA-1").digest(serverJar.readBytes())
             require(sha1.hexToByteArray().contentEquals(digest)) { "invalid" }
@@ -116,10 +121,13 @@ class ServerJar(private val versionId: String, private val path: Path, json: Jso
         val root = this.fs.getPath(source)
         root.walk().forEach {
             val targetPath = dst.resolve(it.relativeTo(root).toString())
-            targetPath.createParentDirectories()
-            try {
-                it.copyTo(targetPath)
-            } catch (e: FileAlreadyExistsException) { /* ignored */
+            if (!targetPath.exists()) {
+                targetPath.createParentDirectories()
+                try {
+                    println("Extracting $source to $targetPath")
+                    it.copyTo(targetPath)
+                } catch (e: FileAlreadyExistsException) { /* ignored */
+                }
             }
         }
     }
@@ -134,6 +142,7 @@ fun downloadClasspath(path: Path): List<Path> {
         .executor(executor)
         .version(HttpClient.Version.HTTP_1_1)
         .build()
+    println("Located server.config.json file")
     val config = Thread.currentThread().contextClassLoader.getResourceAsStream("server.config.json")
         ?.use { String(it.readAllBytes()) }
         ?.let { json.decodeFromString<ServerConfig>(it) }
@@ -151,6 +160,7 @@ fun main() {
     val cp = downloadClasspath(Paths.get("."))
 
     val cl = URLClassLoader(cp.map { it.toUri().toURL() }.toTypedArray(), ClassLoader.getSystemClassLoader())
+    println("Starting the Felis server")
     val mainclass = Class.forName("felis.MainKt", true, cl)
     val mainMethod = MethodHandles.publicLookup()
         .findStatic(mainclass, "main", MethodType.fromMethodDescriptorString("([Ljava/lang/String;)V", cl))

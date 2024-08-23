@@ -16,8 +16,18 @@ dependencies {
     implementation(kotlin("reflect"))
 }
 
-kotlin {
-    jvmToolchain(21)
+val fatJar = tasks.create<Jar>("fatJar") {
+    manifest {
+        attributes("Main-Class" to "felis.bundler.handler.MainKt")
+    }
+    archiveBaseName.set(archiveBaseName.get() + "-fat")
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(*configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) }.toTypedArray())
+    with(tasks.getByName<Jar>("jar"))
+}
+
+artifacts {
+    archives(fatJar)
 }
 
 publishing {

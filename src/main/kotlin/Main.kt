@@ -155,7 +155,7 @@ fun main() {
     val mainMethod = MethodHandles.publicLookup()
         .findStatic(mainclass, "main", MethodType.fromMethodDescriptorString("([Ljava/lang/String;)V", cl))
     System.setProperty("felis.minecraft.remap", "true")
-    System.setProperty("felis.launcher", "felis.launcher.MinecraftLauncher")
+    System.setProperty("felis.launcher", "felis.launcher.minecraft.MinecraftLauncher")
     System.setProperty("felis.side", "SERVER")
     System.setProperty("felis.mods", "felis-mods")
     System.setProperty("java.class.path", cp.joinToString(File.pathSeparator) { it.pathString })
